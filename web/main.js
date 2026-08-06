@@ -1,20 +1,34 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const container = document.getElementById('container');
-const canvas = document.getElementById('three-canvas');
-const statusEl = document.getElementById('status');
-const countEl = document.getElementById('count');
-const selectionEl = document.getElementById('selection');
-
 let scene, camera, renderer, controls, points, galaxyData;
 
 const GALAXY_BINARY_URL = 'galaxies.bin';
 const GALAXY_META_URL = 'galaxies.json';
 
+const canvas = document.getElementById('three-canvas');
 const POINT_SIZE = 2.0;
 const FOG_NEAR = 100;
 const FOG_FAR = 2000;
+const MPC_TO_LY = 3.2615637771418799e6;
+
+// Light speed wave state
+let baseColors = null;
+let galaxyDistances = null;
+let waveActive = false;
+let waveRadius = 0;
+let waveMaxRadius = 0;
+let waveElapsedYears = 0; // simulated years elapsed at real speed of light
+let timeScale = 200e6; // simulated years per real second
+let waveSphere = null;
+
+const statusEl = document.getElementById('status');
+const countEl = document.getElementById('count');
+const selectionEl = document.getElementById('selection');
+const btnZoom = document.getElementById('btn-zoom');
+const btnLightwave = document.getElementById('btn-lightwave');
+const timeScaleSlider = document.getElementById('timescale-slider');
+const timeScaleValue = document.getElementById('timescale-value');
 
 async function init() {
     setupScene();
@@ -23,6 +37,9 @@ async function init() {
     setupControls();
     setupLights();
     await loadGalaxies();
+    setupWaveSphere();
+    setupButtons();
+    startZoomOut();
     animate();
 }
 
@@ -123,6 +140,15 @@ function parseBinaryData(arrayBuffer, expectedCount) {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    baseColors = new Float32Array(colors);
+    galaxyDistances = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+        const x = positions[i * 3];
+        const y = positions[i * 3 + 1];
+        const z = positions[i * 3 + 2];
+        galaxyDistances[i] = Math.sqrt(x * x + y * y + z * z);
+    }
     
     const material = new THREE.PointsMaterial({
         size: POINT_SIZE,
@@ -223,6 +249,15 @@ function createFallbackGalaxies() {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    baseColors = new Float32Array(colors);
+    galaxyDistances = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+        const x = positions[i * 3];
+        const y = positions[i * 3 + 1];
+        const z = positions[i * 3 + 2];
+        galaxyDistances[i] = Math.sqrt(x * x + y * y + z * z);
+    }
     
     const material = new THREE.PointsMaterial({
         size: POINT_SIZE,
@@ -244,15 +279,141 @@ function createFallbackGalaxies() {
     countEl.textContent = `Procedural: ${count} galaxies`;
 }
 
+function setupWaveSphere() {
+    const geometry = new THREE.SphereGeometry(1, 48, 24);
+    const material = new THREE.MeshBasicMaterial({
+        color: 0x66ccff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+    waveSphere = new THREE.Mesh(geometry, material);
+    waveSphere.visible = false;
+    scene.add(waveSphere);
+}
+
+function setupButtons() {
+    btnZoom.addEventListener('click', startZoomOut);
+    btnLightwave.addEventListener('click', startLightWave);
+    timeScaleSlider.addEventListener('input', () => {
+        timeScale = Number(timeScaleSlider.value) * 1e6;
+        timeScaleValue.textContent = formatYears(timeScale) + '/s';
+    });
+}
+
+function startZoomOut() {
+    if (!points) return;
+    stopLightWave();
+    camera.position.set(0, 0, 80);
+    controls.target.set(0, 0, 0);
+    controls.update();
+    statusEl.textContent = 'Zooming out...';
+    btnZoom.disabled = true;
+
+    const startPos = camera.position.clone();
+    const endPos = new THREE.Vector3(0, 0, 500);
+    const duration = 4000;
+    const t0 = performance.now();
+
+    function step(now) {
+        const t = Math.min(1, (now - t0) / duration);
+        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        camera.position.lerpVectors(startPos, endPos, ease);
+        controls.update();
+        if (t < 1) {
+            requestAnimationFrame(step);
+        } else {
+            statusEl.textContent = `Loaded ${galaxyData.count.toLocaleString()} galaxies`;
+            btnZoom.disabled = false;
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+function startLightWave() {
+    if (!points || !baseColors || !galaxyDistances) return;
+    stopLightWave();
+    waveActive = true;
+    waveRadius = 0;
+    waveElapsedYears = 0;
+    waveMaxRadius = 0;
+    for (let i = 0; i < galaxyDistances.length; i++) {
+        if (galaxyDistances[i] > waveMaxRadius) waveMaxRadius = galaxyDistances[i];
+    }
+    const totalYears = waveMaxRadius * MPC_TO_LY;
+    waveSphere.visible = true;
+    statusEl.textContent = `Light from Earth crossing the universe · ${formatYears(totalYears)} to reach the farthest galaxy`;
+    btnLightwave.disabled = true;
+}
+
+function stopLightWave() {
+    if (!waveActive) return;
+    waveActive = false;
+    waveSphere.visible = false;
+    btnLightwave.disabled = false;
+    restoreColors();
+}
+
+function restoreColors() {
+    if (!points || !baseColors) return;
+    const colorAttr = points.geometry.attributes.color;
+    colorAttr.array.set(baseColors);
+    colorAttr.needsUpdate = true;
+}
+
+function formatYears(years) {
+    if (years >= 1e9) return (years / 1e9).toFixed(2) + 'B yr';
+    if (years >= 1e6) return (years / 1e6).toFixed(1) + 'M yr';
+    if (years >= 1e3) return (years / 1e3).toFixed(1) + 'k yr';
+    return years.toFixed(0) + ' yr';
+}
+
+function updateWave(dt) {
+    if (!waveActive) return;
+    waveElapsedYears += timeScale * dt;
+    waveRadius = waveElapsedYears / MPC_TO_LY;
+
+    if (waveRadius >= waveMaxRadius) {
+        waveRadius = waveMaxRadius;
+        stopLightWave();
+        countEl.textContent = `Light reached the farthest galaxy in ${formatYears(waveElapsedYears)}`;
+        return;
+    }
+
+    waveSphere.scale.setScalar(waveRadius);
+
+    const colorAttr = points.geometry.attributes.color;
+    const colors = colorAttr.array;
+    const bright = 1.0;
+    const dim = 0.06;
+    for (let i = 0; i < galaxyDistances.length; i++) {
+        const lit = galaxyDistances[i] <= waveRadius ? bright : dim;
+        colors[i * 3] = baseColors[i * 3] * lit;
+        colors[i * 3 + 1] = baseColors[i * 3 + 1] * lit;
+        colors[i * 3 + 2] = baseColors[i * 3 + 2] * lit;
+    }
+    colorAttr.needsUpdate = true;
+
+    const pct = ((waveRadius / waveMaxRadius) * 100).toFixed(2);
+    countEl.textContent = `Light has traveled ${formatYears(waveElapsedYears)} (${waveRadius.toFixed(1)} / ${waveMaxRadius.toFixed(0)} Mpc) · ${pct}% of the way out`;
+}
+
 function animate() {
     requestAnimationFrame(animate);
-    
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - (animate._last || now)) / 1000);
+    animate._last = now;
+
+    updateWave(dt);
+
     controls.update();
-    
+
     if (points) {
         points.rotation.y += 0.00005;
     }
-    
+
     renderer.render(scene, camera);
 }
 

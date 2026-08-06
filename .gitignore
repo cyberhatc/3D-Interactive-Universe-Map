@@ -17,6 +17,7 @@ htmlcov/
 
 # Data files (generated)
 pipeline/data/
+data/
 web/galaxies.bin
 web/galaxies.json
 

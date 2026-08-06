@@ -62,7 +62,7 @@ def transform_galaxies(input_path: Path, output_path: Path, max_distance_mpc: fl
     
     # Color by redshift (distance) - blue (near) to red (far)
     z_min, z_max = df['redshift'].min(), df['redshift'].max()
-    df['color_r'] = (df['z'] - z_min) / (z_max - z_min)
+    df['color_r'] = (df['redshift'] - z_min) / (z_max - z_min)
     df['color_g'] = 0.3 * (1 - df['color_r'])  # Some green in middle
     df['color_b'] = 1 - df['color_r']
     

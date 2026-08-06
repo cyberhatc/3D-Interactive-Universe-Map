@@ -22,24 +22,44 @@ def fetch_sdss_galaxies(limit: int = 100000, output_path: Path = None) -> pd.Dat
     Returns:
         DataFrame with ra, dec, z, petroMag_r, class columns
     """
-    query = f"""
-    SELECT TOP {limit}
-        ra, dec, z, petroMag_r, class
-    FROM SpecObj
-    WHERE class = 'GALAXY' 
-      AND zWarning = 0 
-      AND z > 0
-      AND z < 0.5
-    """
+    batch_size = 50000
+    all_frames = []
+    fetched = 0
+    offset = 0
     
-    print(f"Querying SDSS for {limit} galaxies...")
-    result = SDSS.query_sql(query)
+    while fetched < limit:
+        batch = min(batch_size, limit - fetched)
+        query = f"""
+        SELECT ra, dec, z, petroMag_r, class FROM (
+            SELECT p.ra AS ra, p.dec AS dec, s.z AS z,
+                   p.petroMag_r AS petroMag_r, s.class AS class,
+                   ROW_NUMBER() OVER (ORDER BY s.specObjID) AS rn
+            FROM SpecObj s
+            JOIN PhotoObj p ON s.bestObjID = p.objID
+            WHERE s.class = 'GALAXY'
+              AND s.zWarning = 0
+              AND s.z > 0
+              AND s.z < 0.5
+              AND p.petroMag_r > 0
+        ) t
+        WHERE t.rn > {offset} AND t.rn <= {offset + batch}
+        """
+        
+        print(f"Querying SDSS for {batch} galaxies (offset {offset})...")
+        result = SDSS.query_sql(query)
+        
+        if result is None or len(result) == 0:
+            print("No more results available.")
+            break
+        
+        df = result.to_pandas()
+        all_frames.append(df)
+        fetched += len(df)
+        offset += len(df)
+        print(f"Fetched {len(df)} galaxies (total {fetched})")
     
-    if result is None or len(result) == 0:
-        raise ValueError("No results returned from SDSS")
-    
-    df = result.to_pandas()
-    print(f"Fetched {len(df)} galaxies")
+    df = pd.concat(all_frames, ignore_index=True)
+    print(f"Fetched {len(df)} galaxies total")
     
     if output_path:
         output_path.parent.mkdir(parents=True, exist_ok=True)

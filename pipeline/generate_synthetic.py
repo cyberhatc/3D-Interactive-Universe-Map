@@ -138,7 +138,7 @@ def transform_synthetic(input_path: Path, output_path: Path):
     df['z'] = df['z_mpc'] * scale
     
     z_min, z_max = df['redshift'].min(), df['redshift'].max()
-    df['color_r'] = (df['z'] - z_min) / (z_max - z_min)
+    df['color_r'] = (df['redshift'] - z_min) / (z_max - z_min)
     df['color_g'] = 0.3 * (1 - df['color_r'])
     df['color_b'] = 1 - df['color_r']
     

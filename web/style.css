@@ -70,3 +70,55 @@ body {
     color: #ff6b6b;
     display: none;
 }
+
+#controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+}
+
+#controls button {
+    background: rgba(74, 159, 255, 0.15);
+    color: #9ccbff;
+    border: 1px solid rgba(74, 159, 255, 0.5);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+#controls button:hover {
+    background: rgba(74, 159, 255, 0.35);
+    color: #fff;
+}
+
+#controls button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+#timescale {
+    margin-top: 12px;
+    pointer-events: auto;
+}
+
+#timescale label {
+    font-size: 0.72rem;
+    color: #9ccbff;
+    display: block;
+    margin-bottom: 4px;
+}
+
+#timescale input[type="range"] {
+    width: 100%;
+    accent-color: #4a9fff;
+    cursor: pointer;
+}
+
+#timescale-note {
+    font-size: 0.68rem;
+    color: #777;
+    margin-top: 4px;
+}
