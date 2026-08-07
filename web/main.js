@@ -11,7 +11,6 @@ const GALAXY_BINARY_URL = 'galaxies.bin';
 const GALAXY_META_URL = 'galaxies.json';
 
 const canvas = document.getElementById('three-canvas');
-const POINT_SIZE = 2.0;
 const FOG_NEAR = 800;
 const FOG_FAR = 6000;
 const MPC_TO_LY = 3.2615637771418799e6;
@@ -346,6 +345,50 @@ function buildGalaxyCloud(count, positions, colors, sizes) {
     addAxes();
 }
 
+function createPointsMaterial() {
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            uScale: { value: renderer.domElement.height / 2 },
+            uOpacity: { value: 0.85 },
+            uFogNear: { value: FOG_NEAR },
+            uFogFar: { value: FOG_FAR },
+        },
+        vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            varying float vDepth;
+            uniform float uScale;
+            void main() {
+                vColor = color;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vDepth = -mvPosition.z;
+                float pointSize = size * uScale / max(vDepth, 1.0);
+                gl_PointSize = max(pointSize, 0.5);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            varying float vDepth;
+            uniform float uOpacity;
+            uniform float uFogNear;
+            uniform float uFogFar;
+            void main() {
+                vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+                float r = dot(cxy, cxy);
+                float alpha = smoothstep(1.0, 0.0, r) * uOpacity;
+                float fogFactor = 1.0 - smoothstep(uFogNear, uFogFar, vDepth);
+                gl_FragColor = vec4(vColor * fogFactor, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+    });
+    return material;
+}
+
 function rebuildPoints(visibleIndices) {
     if (points) {
         scene.remove(points);
@@ -377,15 +420,7 @@ function rebuildPoints(visibleIndices) {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    const material = new THREE.PointsMaterial({
-        size: POINT_SIZE,
-        vertexColors: true,
-        sizeAttenuation: true,
-        transparent: true,
-        opacity: 0.85,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-    });
+    const material = createPointsMaterial();
 
     points = new THREE.Points(geometry, material);
     points.frustumCulled = false;
@@ -860,6 +895,9 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    if (points) {
+        points.material.uniforms.uScale.value = renderer.domElement.height / 2;
+    }
 });
 
 let pointerDownPos = null;
