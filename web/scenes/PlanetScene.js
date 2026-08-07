@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
+import { getPlanetTexture, getRingTexture } from './planetTextures.js';
 
 const PLANET_DETAILS = {
     Sun: { radius: 696340.0, color: 0xffdd88, rotationPeriod: 27.0, axialTilt: 7.25, textureUrl: 'https://www.solarsystemscope.com/textures/download/2k_sun.jpg' },
@@ -83,29 +84,17 @@ export class PlanetScene extends BaseScene {
         const geometry = new THREE.SphereGeometry(radius, 64, 64);
 
         const isSun = this.planetName === 'Sun';
+        const texture = getPlanetTexture(this.planetName);
         let material;
-        try {
-            const texture = await this.loadTexture(this.planetData.textureUrl);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            if (isSun) {
-                material = new THREE.MeshBasicMaterial({ map: texture, color: 0xfff2cc });
-            } else {
-                material = new THREE.MeshStandardMaterial({
-                    map: texture,
-                    roughness: 0.8,
-                    metalness: 0.1,
-                });
-            }
-        } catch {
-            if (isSun) {
-                material = new THREE.MeshBasicMaterial({ color: this.planetData.color });
-            } else {
-                material = new THREE.MeshStandardMaterial({
-                    color: this.planetData.color,
-                    roughness: 0.8,
-                    metalness: 0.1,
-                });
-            }
+        if (isSun) {
+            material = new THREE.MeshBasicMaterial({ map: texture, color: 0xfff2cc });
+        } else {
+            material = new THREE.MeshStandardMaterial({
+                map: texture,
+                color: 0xffffff,
+                roughness: 0.8,
+                metalness: 0.1,
+            });
         }
 
         this.planet = new THREE.Mesh(geometry, material);
@@ -131,19 +120,12 @@ export class PlanetScene extends BaseScene {
         this.planet.userData.sunLight = light;
     }
 
-    loadTexture(url) {
-        return new Promise((resolve, reject) => {
-            const loader = new THREE.TextureLoader();
-            loader.setCrossOrigin('anonymous');
-            loader.load(url, resolve, undefined, reject);
-        });
-    }
-
     createMoon() {
         const moonData = { radius: 1737.4, distance: this.planetData.moonDistance };
         const geometry = new THREE.SphereGeometry(moonData.radius, 32, 32);
         const material = new THREE.MeshStandardMaterial({
-            color: 0xaaaaaa,
+            map: getPlanetTexture('Moon'),
+            color: 0xffffff,
             roughness: 0.9,
         });
         this.moon = new THREE.Mesh(geometry, material);
@@ -156,9 +138,9 @@ export class PlanetScene extends BaseScene {
         const outerRadius = this.planetData.radius * 2.3;
         const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 128);
         const material = new THREE.MeshBasicMaterial({
-            color: 0xc9c0b0,
+            map: getRingTexture(),
             transparent: true,
-            opacity: 0.7,
+            opacity: 0.95,
             side: THREE.DoubleSide,
             depthWrite: false,
         });

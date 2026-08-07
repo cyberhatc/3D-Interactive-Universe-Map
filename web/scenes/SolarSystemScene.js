@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
+import { getPlanetTexture, getRingTexture } from './planetTextures.js';
 
 // Keplerian orbital elements (J2000 epoch, heliocentric ecliptic), deg.
 // a = semi-major axis (AU), e = eccentricity, i = inclination,
@@ -56,6 +57,39 @@ export class SolarSystemScene extends BaseScene {
 
     setupScene() {
         this.scene.background = new THREE.Color(0x000000);
+        this.createStarfield();
+    }
+
+    createStarfield() {
+        const positions = new Float32Array(4000 * 3);
+        const colors = new Float32Array(4000 * 3);
+        for (let i = 0; i < 4000; i++) {
+            const phi = Math.acos(Math.random() * 2 - 1);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 9000;
+            positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[i * 3 + 2] = r * Math.cos(phi);
+            const b = 0.4 + Math.random() * 0.6;
+            colors[i * 3] = b;
+            colors[i * 3 + 1] = b;
+            colors[i * 3 + 2] = b;
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({
+            size: 2,
+            vertexColors: true,
+            sizeAttenuation: false,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+        });
+        const stars = new THREE.Points(geometry, material);
+        stars.frustumCulled = false;
+        this.starfield = stars;
+        this.scene.add(stars);
     }
 
     // --- Kepler solver: mean anomaly -> heliocentric ecliptic (AU) ---
@@ -93,32 +127,18 @@ export class SolarSystemScene extends BaseScene {
     }
 
     createSun() {
-        const geometry = new THREE.SphereGeometry(0.1 * AU_TO_UNITS, 64, 32);
-
-        // Try to load the real Sun texture; fall back to the shader if it fails.
-        const textureLoader = new THREE.TextureLoader();
-        const sunTextureUrl = 'https://www.solarsystemscope.com/textures/download/2k_sun.jpg';
-        const material = new THREE.MeshBasicMaterial({ color: 0xffdd88 });
-
+        const sunRadius = 0.1 * AU_TO_UNITS;
+        const geometry = new THREE.SphereGeometry(sunRadius, 64, 32);
+        const material = new THREE.MeshBasicMaterial({ map: getPlanetTexture('Sun'), color: 0xfff2cc });
         this.sun = new THREE.Mesh(geometry, material);
-        this.sun.userData.sunTextureUrl = sunTextureUrl;
+        this.sun.userData.sunTextureUrl = 'procedural';
 
-        textureLoader.setCrossOrigin('anonymous');
-        textureLoader.load(
-            sunTextureUrl,
-            (tex) => {
-                tex.colorSpace = THREE.SRGBColorSpace;
-                this.sun.material = new THREE.MeshBasicMaterial({ map: tex, color: 0xfff0c0 });
-            },
-            undefined,
-            () => { /* fall back to flat color */ }
-        );
-
-        const coronaGeometry = new THREE.SphereGeometry(0.15 * AU_TO_UNITS, 32, 16);
+        const coronaGeometry = new THREE.SphereGeometry(sunRadius * 1.5, 32, 16);
         const coronaMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff8800,
+            map: this.makeGlowTexture(),
+            color: 0xffaa33,
             transparent: true,
-            opacity: 0.1,
+            opacity: 0.55,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             side: THREE.BackSide,
@@ -127,9 +147,42 @@ export class SolarSystemScene extends BaseScene {
         this.sun.add(corona);
         this.sun.userData.corona = corona;
 
-        const light = new THREE.PointLight(0xffffee, 2, 5000);
+        // Additive glow sprite so the Sun reads as a bright source.
+        const glowSprite = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: this.makeGlowTexture(),
+                color: 0xffcc55,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: true,
+            })
+        );
+        glowSprite.scale.set(sunRadius * 14, sunRadius * 14, 1);
+        this.sun.add(glowSprite);
+
+        const light = new THREE.PointLight(0xfff2cc, 3.0, 30000, 1.2);
         this.sun.add(light);
         this.scene.add(this.sun);
+
+        // Ambient + hemisphere so the outer planets are visible too (the Sun's
+        // point light alone can no longer reach Neptune's orbit).
+        this.scene.add(new THREE.AmbientLight(0x22364d, 1.1));
+    }
+
+    makeGlowTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        g.addColorStop(0.0, 'rgba(255,255,255,1)');
+        g.addColorStop(0.25, 'rgba(255,220,150,0.7)');
+        g.addColorStop(0.6, 'rgba(255,140,40,0.25)');
+        g.addColorStop(1.0, 'rgba(255,80,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 256, 256);
+        return new THREE.CanvasTexture(canvas);
     }
 
     createPlanets() {
@@ -147,10 +200,11 @@ export class SolarSystemScene extends BaseScene {
     }
 
     createPlanetMesh(el) {
-        const geometry = new THREE.SphereGeometry(el.radius * AU_TO_UNITS, 32, 32);
+        const geometry = new THREE.SphereGeometry(el.radius * AU_TO_UNITS, 48, 48);
         const material = new THREE.MeshStandardMaterial({
-            color: el.color,
-            roughness: 0.8,
+            map: getPlanetTexture(el.name),
+            color: 0xffffff,
+            roughness: 0.85,
             metalness: 0.05,
         });
         const planet = new THREE.Mesh(geometry, material);
@@ -158,22 +212,6 @@ export class SolarSystemScene extends BaseScene {
         planet.receiveShadow = true;
         planet.userData.planetName = el.name;
         planet.rotation.z = (el.tilt || 0) * DEG;
-
-        if (el.texture) {
-            const loader = new THREE.TextureLoader();
-            loader.setCrossOrigin('anonymous');
-            loader.load(
-                el.texture,
-                (tex) => {
-                    tex.colorSpace = THREE.SRGBColorSpace;
-                    planet.material.map = tex;
-                    planet.material.color.setHex(0xffffff);
-                    planet.material.needsUpdate = true;
-                },
-                undefined,
-                () => { /* keep flat color fallback */ }
-            );
-        }
         return planet;
     }
 
@@ -208,8 +246,12 @@ export class SolarSystemScene extends BaseScene {
     }
 
     createMoon(planet) {
-        const geometry = new THREE.SphereGeometry(0.0025 * AU_TO_UNITS, 16, 16);
-        const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.9 });
+        const geometry = new THREE.SphereGeometry(0.0025 * AU_TO_UNITS, 24, 24);
+        const material = new THREE.MeshStandardMaterial({
+            map: getPlanetTexture('Moon'),
+            color: 0xffffff,
+            roughness: 0.9,
+        });
         const moon = new THREE.Mesh(geometry, material);
         moon.position.set(0.025 * AU_TO_UNITS, 0, 0);
         planet.add(moon);
@@ -217,74 +259,19 @@ export class SolarSystemScene extends BaseScene {
     }
 
     createRings(planet, radius) {
-        const ringTexture = this.createRingTexture();
+        const ringTexture = getRingTexture();
         const geometry = new THREE.RingGeometry(radius * 1.2, radius * 2.3, 128);
         const material = new THREE.MeshBasicMaterial({
             map: ringTexture,
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.95,
             side: THREE.DoubleSide,
             depthWrite: false,
         });
-        // Fix UV mapping so the texture radial stripes map to ring radii
-        const uvAttribute = geometry.attributes.uv;
-        for (let i = 0; i < uvAttribute.count; i++) {
-            uvAttribute.setXY(i, 0, uvAttribute.getX(i));
-        }
-        geometry.attributes.uv.needsUpdate = true;
         const rings = new THREE.Mesh(geometry, material);
         rings.rotation.x = -Math.PI / 2;
         planet.add(rings);
         planet.userData.rings = rings;
-    }
-
-    createRingTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        // Radial rings: bright A ring, dark Cassini division, bright B ring
-        const stops = [
-            [0.00, 'rgba(150,140,120,0.9)'],
-            [0.35, 'rgba(180,170,150,0.95)'],
-            [0.45, 'rgba(40,35,30,0.5)'],
-            [0.50, 'rgba(30,25,20,0.3)'],
-            [0.60, 'rgba(200,190,170,0.95)'],
-            [0.75, 'rgba(170,160,140,0.9)'],
-            [0.85, 'rgba(120,110,95,0.6)'],
-            [1.00, 'rgba(90,85,75,0.4)'],
-        ];
-        for (let i = 0; i < 256; i++) {
-            const t = i / 255;
-            let color = 'rgba(150,140,120,0.7)';
-            for (let s = 0; s < stops.length - 1; s++) {
-                if (t >= stops[s][0] && t <= stops[s + 1][0]) {
-                    const local = (t - stops[s][0]) / (stops[s + 1][0] - stops[s][0]);
-                    const c1 = stops[s][1], c2 = stops[s + 1][1];
-                    color = this.lerpColor(c1, c2, local);
-                    break;
-                }
-            }
-            ctx.fillStyle = color;
-            ctx.fillRect(0, i, 1, 1);
-        }
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.needsUpdate = true;
-        return texture;
-    }
-
-    lerpColor(c1, c2, t) {
-        const parse = (s) => s.match(/[\d.]+/g).map(Number);
-        const a = parse(c1), b = parse(c2);
-        const r = Math.round(a[0] + (b[0] - a[0]) * t);
-        const g = Math.round(a[1] + (b[1] - a[1]) * t);
-        const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-        const al = a[3] + (b[3] - a[3]) * t;
-        return `rgba(${r},${g},${bl},${al})`;
     }
 
     createOrbitLines() {
