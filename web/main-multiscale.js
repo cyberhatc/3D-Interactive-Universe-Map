@@ -73,6 +73,13 @@ const journeySpeedValue = document.getElementById('journey-speed-value');
 const galaxyPhoto = document.getElementById('galaxy-photo');
 const photoImg = document.getElementById('photo-img');
 const photoCaption = document.getElementById('photo-caption');
+const galaxyCard = document.getElementById('galaxy-card');
+const cardBody = document.getElementById('card-body');
+const cardClose = document.getElementById('card-close');
+
+// Planck18-ish cosmology for real distance/lookback values (z -> Mpc / Gyr).
+const COSMO = { H0: 67.66, Om: 0.30966, OL: 0.6889 };
+const MORPH_NAMES = ['Elliptical', 'S0 lenticular', 'Spiral', 'Irregular'];
 
 let renderer, composer, controls, crossfadeRenderer, sceneManager;
 let cosmicWebScene, milkyWayScene, solarSystemScene;
@@ -416,6 +423,7 @@ function setupUI() {
     searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
 
     window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideGalaxyCard();
         if (e.key >= '1' && e.key <= '4') {
             const scales = ['cosmic', 'milkyway', 'solar', 'planet'];
             zoomToScale(scales[e.key - '1']);
@@ -426,6 +434,8 @@ function setupUI() {
             toggleJourneyPause();
         }
     });
+
+    if (cardClose) cardClose.addEventListener('click', hideGalaxyCard);
 
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('click', onCanvasClick);
@@ -562,6 +572,7 @@ function zoomToScale(target) {
 function hideGalaxyPhoto() {
     const card = document.getElementById('galaxy-photo');
     if (card) card.classList.add('hidden');
+    hideGalaxyCard();
 }
 
 function flyCosmicTo(dir, distanceMpc, caption) {
@@ -856,7 +867,24 @@ function onCanvasClick(event) {
     if (dx * dx + dy * dy > 25) return; // was a drag
     if (journey.active) return;
 
-    if (sceneManager.getCurrentSceneName() !== 'solar-system' || !solarSystemScene) return;
+    const sceneName = sceneManager.getCurrentSceneName();
+
+    if (sceneName === 'cosmic-web' && cosmicWebScene) {
+        const rect = canvas.getBoundingClientRect();
+        const mouse = new THREE.Vector2(
+            ((event.clientX - rect.left) / rect.width) * 2 - 1,
+            -((event.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+        const idx = pickNearestGalaxy(raycaster.ray);
+        if (idx >= 0 && !galaxyPhoto.classList.contains('hidden')) hideGalaxyPhoto();
+        if (idx >= 0) showGalaxyCard(idx);
+        else hideGalaxyCard();
+        return;
+    }
+
+    if (sceneName !== 'solar-system' || !solarSystemScene) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouse = new THREE.Vector2(
@@ -871,6 +899,112 @@ function onCanvasClick(event) {
         const name = hits[0].object.userData.planetName;
         if (name) enterPlanetView(name);
     }
+}
+
+// --- Real galaxy detail card ---------------------------------------------
+
+function pickNearestGalaxy(ray) {
+    const d = galaxyData;
+    if (!d || !d.positions) return -1;
+    const n = d.positions.length / 3;
+    const cam = camera.position;
+    let best = -1, bestAng = Infinity;
+    for (let i = 0; i < n; i++) {
+        const gx = d.positions[i * 3] - cam.x;
+        const gy = d.positions[i * 3 + 1] - cam.y;
+        const gz = d.positions[i * 3 + 2] - cam.z;
+        const len = Math.sqrt(gx * gx + gy * gy + gz * gz);
+        if (len < 1e-6) continue;
+        // Angular offset between the click ray and the galaxy direction.
+        const dot = (gx * ray.direction.x + gy * ray.direction.y + gz * ray.direction.z) / len;
+        const cosA = Math.max(-1, Math.min(1, dot));
+        const ang = Math.acos(cosA); // radians
+        if (ang < bestAng) { bestAng = ang; best = i; }
+    }
+    // Only respond to a fairly deliberate click (within ~1.2 deg).
+    if (best >= 0 && bestAng < 0.021) return best;
+    return -1;
+}
+
+function lookbackTimeGyr(z) {
+    if (!z || z <= 0) return 0;
+    const steps = 200;
+    let sum = 0;
+    for (let i = 0; i <= steps; i++) {
+        const zp = (z * i) / steps;
+        const E = Math.sqrt(COSMO.Om * Math.pow(1 + zp, 3) + COSMO.OL);
+        const w = (i === 0 || i === steps) ? 0.5 : 1;
+        sum += w / ((1 + zp) * E);
+    }
+    const integral = (sum * z) / steps;
+    const cOverH0 = 299792.458 / COSMO.H0; // Mpc
+    return (cOverH0 * integral * 3.261563777e6) / 1e9; // Gyr
+}
+
+function showGalaxyCard(idx) {
+    if (!galaxyData) return;
+    const { positions, ra, dec, redshift, sizes, mag, morphs, survey, bA } = galaxyData;
+    const distMpc = galaxyDistances ? galaxyDistances[idx] : 0;
+    const distLy = distMpc * MPC_TO_LY;
+    const z = redshift ? redshift[idx] : 0;
+    const m = morphs ? morphs[idx] : 2;
+    const s = survey ? survey[idx] : 0;
+    const lb = lookbackTimeGyr(z);
+    const angRadiusDeg = distMpc > 0 ? (sizes[idx] / distMpc) * 57.2958 : 0;
+
+    const rows = [
+        ['Object class', 'GALAXY'],
+        ['Catalog', s === 0 ? 'SDSS (spectroscopic wedge)' : '2MRS (full sky)'],
+        ['Morphology', MORPH_NAMES[m] || '—'],
+        ['Right Ascension', ra != null ? `${ra[idx].toFixed(4)}°` : '—'],
+        ['Declination', dec != null ? `${dec[idx].toFixed(4)}°` : '—'],
+        ['Redshift (z)', z != null ? z.toFixed(5) : '—'],
+        ['Comoving distance', `${distMpc.toFixed(1)} Mpc · ${formatYears(distLy)} light away`],
+        ['Lookback time', lb > 0 ? `light left ~${lb.toFixed(2)} billion years ago` : '—'],
+        ['Apparent magnitude', mag != null ? mag[idx].toFixed(2) : '—'],
+        ['Physical radius', `${(sizes[idx] * 1000).toFixed(0)} pc`],
+        ['Axis ratio (b/a)', bA != null ? bA[idx].toFixed(2) : '—'],
+        ['Angular size', `${angRadiusDeg.toFixed(2)}°`],
+    ];
+
+    cardBody.innerHTML = '';
+    rows.forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.className = 'card-row';
+        const l = document.createElement('span');
+        l.className = 'card-label';
+        l.textContent = label;
+        const v = document.createElement('span');
+        v.className = 'card-value';
+        v.textContent = value;
+        row.appendChild(l);
+        row.appendChild(v);
+        cardBody.appendChild(row);
+    });
+
+    if (ra != null && dec != null) {
+        const cutoutUrl =
+            `https://skyserver.sdss.org/dr18/SkyServerWS/ImgCutout/getjpeg?ra=${ra[idx]}&dec=${dec[idx]}&scale=0.4&width=200&height=200`;
+        const img = document.createElement('img');
+        img.className = 'card-image';
+        img.alt = 'Sky cutout';
+        img.onerror = () => { img.style.display = 'none'; };
+        img.src = cutoutUrl;
+        const link = document.createElement('a');
+        link.className = 'card-link';
+        link.href = `https://skyserver.sdss.org/dr18/en/tools/explore/Summary.aspx?ra=${ra[idx]}&dec=${dec[idx]}`;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Open in SDSS Explorer ↗';
+        cardBody.appendChild(img);
+        cardBody.appendChild(link);
+    }
+
+    galaxyCard.classList.remove('hidden');
+}
+
+function hideGalaxyCard() {
+    galaxyCard.classList.add('hidden');
 }
 
 // --- Main loop ---
