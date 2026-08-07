@@ -16,6 +16,15 @@
                 <p id="count"></p>
                 <p id="scale-narr"></p>
                 <p id="selection"></p>
+                <div id="scale-nav">
+                    <span class="group-label">Scale</span>
+                    <div id="scale-buttons">
+                        <button class="scale-btn active" data-scale="cosmic" title="1 - Cosmic Web (SDSS Galaxies)">🌌 Cosmic Web</button>
+                        <button class="scale-btn" data-scale="milkyway" title="2 - Milky Way (Gaia Stars)">🌟 Milky Way</button>
+                        <button class="scale-btn" data-scale="solar" title="3 - Solar System">☀️ Solar System</button>
+                        <button class="scale-btn" data-scale="planet" title="4 - Planet View">🪐 Planet</button>
+                    </div>
+                </div>
                 <div id="search">
                     <input id="search-input" type="text" placeholder="RA Dec distance · e.g. 192 3 400 · or target" autocomplete="off">
                     <button id="btn-search">Go</button>
@@ -24,12 +33,39 @@
                     <button id="btn-zoom">Zoom Out</button>
                     <button id="btn-lightwave">Light Speed Wave</button>
                 </div>
+                <div id="journey">
+                    <span class="group-label">Light-speed journey</span>
+                    <div id="journey-buttons">
+                        <button id="btn-journey-start">🚀 Start Journey</button>
+                        <button id="btn-journey-pause" disabled>⏸ Pause</button>
+                        <button id="btn-journey-cruise" disabled>Cruise</button>
+                        <button id="btn-journey-exit" disabled>Exit</button>
+                    </div>
+                    <label for="journey-direction">Direction</label>
+                    <select id="journey-direction">
+                        <option value="andromeda">Toward Andromeda (M31)</option>
+                        <option value="gc">Toward the galactic center</option>
+                        <option value="sloan">Sloan Great Wall</option>
+                        <option value="north">Galactic north pole</option>
+                        <option value="view">Where I'm looking</option>
+                    </select>
+                    <label for="journey-speed-slider">Time compression: <span id="journey-speed-value">cruise</span></label>
+                    <input type="range" id="journey-speed-slider" min="-9" max="9" step="0.1" value="0">
+                    <p id="journey-note">Camera travels at the speed of light. The slider controls time (1 s = 10<sup>x</sup> light-years). Cruise accelerates automatically.</p>
+                </div>
+                <div id="journey-hud" class="hidden">
+                    <div id="journey-zone"></div>
+                    <div id="journey-text"></div>
+                    <div id="journey-speed-hud"></div>
+                </div>
                 <div id="tours">
                     <span class="group-label">Guided tour</span>
                     <div id="tour-buttons">
                         <button class="tour" data-tour="earth">You Are Here</button>
                         <button class="tour" data-tour="sloan">Sloan Great Wall</button>
                         <button class="tour" data-tour="void">Cosmic Void</button>
+                        <button class="tour" data-tour="milkyway">Milky Way Core</button>
+                        <button class="tour" data-tour="solar">Solar System</button>
                     </div>
                     <p id="tour-caption"></p>
                 </div>
@@ -37,14 +73,18 @@
                     <span class="group-label">Filter by distance</span>
                     <div id="filter-buttons">
                         <button class="filter active" data-filter="all">All</button>
-                        <button class="filter" data-filter="near">Nearby (&lt;150 Mpc)</button>
+                        <button class="filter" data-filter="near">Nearby (<150 Mpc)</button>
                         <button class="filter" data-filter="far">Far (≥150 Mpc)</button>
                     </div>
                 </div>
                 <div id="timescale">
-                    <label for="timescale-slider">Time speed: <span id="timescale-value">200M yr/s</span></label>
-                    <input type="range" id="timescale-slider" min="1" max="2000" value="200">
-                    <p id="timescale-note">Real speed of light · 1 Mpc per 3.26M years</p>
+                    <label for="timescale-slider">Solar system time: <span id="timescale-value">2 days/s</span></label>
+                    <input type="range" id="timescale-slider" min="1" max="1000" value="2">
+                    <p id="timescale-note">Planets orbit per Kepler's equation · click a planet to fly to it</p>
+                </div>
+                <div id="galaxy-photo" class="hidden">
+                    <img id="photo-img" alt="SDSS galaxy cutout">
+                    <p id="photo-caption"></p>
                 </div>
             </div>
             <div id="galaxy-card" class="hidden">
@@ -62,6 +102,6 @@
             }
         }
     </script>
-    <script type="module" src="main.js"></script>
+    <script type="module" src="main-multiscale.js"></script>
 </body>
 </html>

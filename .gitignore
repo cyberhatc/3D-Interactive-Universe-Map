@@ -20,6 +20,8 @@ pipeline/data/
 data/
 web/galaxies.bin
 web/galaxies.json
+web/stars.bin
+web/stars.json
 
 # IDE
 .vscode/
@@ -33,3 +35,7 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Aider Studio (auto-added)
+REPO_MAP.md
+.aider/

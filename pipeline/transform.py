@@ -66,12 +66,17 @@ def transform_galaxies(input_path: Path, output_path: Path, max_distance_mpc: fl
     df['color_g'] = 0.3 * (1 - df['color_r'])  # Some green in middle
     df['color_b'] = 1 - df['color_r']
     
-    # Size by apparent magnitude (brighter = larger)
+    # Physical size in Mpc: brighter galaxies are physically larger
+    # (luminosity L ∝ 10^(-0.4m) → radius R ∝ sqrt(L)).
+    # The frontend shader handles perspective projection (size / distance).
+    # Store physical radius so angular size = physical_radius / distance automatically.
     if 'petroMag_r' in df.columns:
-        mag_min, mag_max = df['petroMag_r'].min(), df['petroMag_r'].max()
-        df['size'] = 1.0 + 2.0 * (1 - (df['petroMag_r'] - mag_min) / (mag_max - mag_min))
+        mag = df['petroMag_r'].values
+        lum = 10.0 ** (-0.4 * (mag - mag.min()))
+        phys_radius_mpc = np.sqrt(lum) * 0.5
+        df['size'] = np.clip(phys_radius_mpc, 0.02, 5.0)
     else:
-        df['size'] = 1.0
+        df['size'] = 0.5
     
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
