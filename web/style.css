@@ -43,6 +43,8 @@ body {
     border-radius: 8px;
     pointer-events: none;
     max-width: 480px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
 }
 
 #info-panel h1 {
@@ -69,6 +71,119 @@ body {
 #selection {
     color: #ff6b6b;
     display: none;
+}
+
+#scale-narr {
+    color: #9ccbff;
+    font-size: 0.78rem;
+    margin-top: 6px;
+    opacity: 0.95;
+}
+
+#search {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+#search input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(74, 159, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(74, 159, 255, 0.4);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    outline: none;
+}
+
+#search input:focus {
+    border-color: #4a9fff;
+}
+
+#search input::placeholder {
+    color: #6688aa;
+}
+
+#search button {
+    background: rgba(74, 159, 255, 0.15);
+    color: #9ccbff;
+    border: 1px solid rgba(74, 159, 255, 0.5);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+#search button:hover {
+    background: rgba(74, 159, 255, 0.35);
+    color: #fff;
+}
+
+.group-label {
+    display: block;
+    font-size: 0.68rem;
+    color: #6688aa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+#tours {
+    margin-top: 12px;
+    pointer-events: auto;
+}
+
+#tour-buttons,
+#filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+#tours button,
+#filters button {
+    background: rgba(74, 159, 255, 0.12);
+    color: #9ccbff;
+    border: 1px solid rgba(74, 159, 255, 0.4);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+#tours button:hover,
+#filters button:hover {
+    background: rgba(74, 159, 255, 0.3);
+    color: #fff;
+}
+
+#filters button.active {
+    background: rgba(74, 159, 255, 0.4);
+    color: #fff;
+    border-color: #4a9fff;
+}
+
+#tour-caption {
+    font-size: 0.72rem;
+    color: #9ccbff;
+    line-height: 1.4;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+#tour-caption.show {
+    opacity: 1;
+}
+
+#filters {
+    margin-top: 12px;
+    pointer-events: auto;
 }
 
 #controls {
@@ -121,4 +236,87 @@ body {
     font-size: 0.68rem;
     color: #777;
     margin-top: 4px;
+}
+
+#galaxy-card {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 260px;
+    background: rgba(8, 12, 20, 0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(74, 159, 255, 0.35);
+    border-radius: 10px;
+    padding: 16px 18px;
+    pointer-events: auto;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+#galaxy-card.hidden {
+    display: none;
+}
+
+#galaxy-card h2 {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #9ccbff;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+#card-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #6688aa;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+#card-close:hover {
+    color: #fff;
+}
+
+.card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(74, 159, 255, 0.12);
+    font-size: 0.72rem;
+}
+
+.card-label {
+    color: #6688aa;
+    flex-shrink: 0;
+}
+
+.card-value {
+    color: #e6f0ff;
+    text-align: right;
+}
+
+.card-image {
+    width: 100%;
+    height: auto;
+    margin-top: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(74, 159, 255, 0.3);
+}
+
+.card-link {
+    display: inline-block;
+    margin-top: 10px;
+    color: #9ccbff;
+    font-size: 0.72rem;
+    text-decoration: none;
+}
+
+.card-link:hover {
+    color: #fff;
+    text-decoration: underline;
 }

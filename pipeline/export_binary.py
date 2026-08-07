@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Export transformed galaxy data as binary Float32Array for efficient Three.js loading.
-Format: [x, y, z, r, g, b, size] per galaxy (7 floats per galaxy)
+Format: [x, y, z, r, g, b, size, ra, dec, z, petroMag_r] per galaxy (11 floats).
+The trailing ra/dec/z/petroMag_r fields feed the click-to-inspect lookup in the frontend.
 """
 
 import argparse
@@ -16,7 +17,7 @@ def export_binary(input_path: Path, output_path: Path, max_points: int = None):
     
     Binary format:
     - Header: 4 bytes (uint32) = number of galaxies
-    - Data: N * 7 * 4 bytes (float32) = [x, y, z, r, g, b, size] per galaxy
+    - Data: N * 11 * 4 bytes (float32) = [x, y, z, r, g, b, size, ra, dec, z, petroMag_r] per galaxy
     """
     print(f"Loading data from {input_path}...")
     df = pd.read_parquet(input_path)
@@ -27,9 +28,9 @@ def export_binary(input_path: Path, output_path: Path, max_points: int = None):
         df = df.sample(n=max_points, random_state=42)
         print(f"Sampled down to {len(df)} galaxies")
     
-    # Prepare data array: x, y, z, r, g, b, size
+    # Prepare data array: x, y, z, r, g, b, size, ra, dec, z, petroMag_r
     n = len(df)
-    data = np.zeros((n, 7), dtype=np.float32)
+    data = np.zeros((n, 11), dtype=np.float32)
     data[:, 0] = df['x'].values.astype(np.float32)
     data[:, 1] = df['y'].values.astype(np.float32)
     data[:, 2] = df['z'].values.astype(np.float32)
@@ -37,6 +38,10 @@ def export_binary(input_path: Path, output_path: Path, max_points: int = None):
     data[:, 4] = df['color_g'].values.astype(np.float32)
     data[:, 5] = df['color_b'].values.astype(np.float32)
     data[:, 6] = df['size'].values.astype(np.float32)
+    data[:, 7] = df['ra'].values.astype(np.float32)
+    data[:, 8] = df['dec'].values.astype(np.float32)
+    data[:, 9] = df['redshift'].values.astype(np.float32)
+    data[:, 10] = df['petroMag_r'].values.astype(np.float32)
     
     # Flatten to 1D array
     flat_data = data.flatten()
@@ -56,6 +61,7 @@ def export_binary(input_path: Path, output_path: Path, max_points: int = None):
     import json
     meta = {
         'count': int(n),
+        'floats_per_galaxy': 11,
         'bounds': {
             'x': [float(df['x'].min()), float(df['x'].max())],
             'y': [float(df['y'].min()), float(df['y'].max())],
